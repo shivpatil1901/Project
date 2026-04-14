@@ -1,0 +1,56 @@
+# Data Paths
+data:
+  raw_path: data/loan.csv
+  processed_dir: data/processed
+  features_dir: data/features
+  models_dir: models
+
+# Processing Parameters
+processing:
+  missing_threshold: 51  # Remove columns with >51% missing data
+  test_size: 0.1  # 90/10 split for processed train/test artifacts
+  random_state: 42
+  
+# Feature Engineering Parameters
+feature_engineering:
+  correlation_threshold: 0.8  # Identify highly correlated feature pairs
+  iv_threshold: 0.02  # Drop categorical features with IV < threshold
+  
+# Feature Selection Parameters
+feature_selection:
+  test_size: 0.2
+  random_state: 42
+  rf_n_estimators: 100
+  rf_threshold: mean  # Use mean importance as threshold
+
+# Data Leakage Prevention
+leakage_prevention:
+  leaky_features:
+    - total_rec_prncp
+    - total_rec_int
+    - total_rec_late_fee
+    - recoveries
+    - last_pymnt_amnt
+    - out_prncp
+
+# Model Training Parameters
+training:
+  random_state: 42
+  
+models:
+  logistic_regression:
+    random_state: 42
+    
+  random_forest:
+    n_estimators: 100
+    random_state: 42
+    
+  gradient_boosting:
+    n_estimators: 100
+    random_state: 42
+    
+  neural_network:
+    hidden_layer_sizes: [50, 25]
+    max_iter: 300
+    random_state: 42
+    solver: adam

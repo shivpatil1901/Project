@@ -1,0 +1,80 @@
+# DVC Pipeline Configuration
+# Run with: dvc repro
+
+stages:
+  process_data:
+    cmd: python src/data/process.py
+    deps:
+      - data/loan.csv
+      - src/data/process.py
+      - params.yaml
+    outs:
+      - data/processed/X_processed.csv
+      - data/processed/y.csv
+      - data/processed/split/X_train_processed.csv
+      - data/processed/split/X_test_processed.csv
+      - data/processed/split/y_train_processed.csv
+      - data/processed/split/y_test_processed.csv
+
+  feature_engineering:
+    cmd: python src/features/engineer.py
+    deps:
+      - data/processed/X_processed.csv
+      - data/processed/y.csv
+      - src/features/engineer.py
+      - params.yaml
+    outs:
+      - data/features/X_engineered.csv
+      - data/features/y_engineered.csv
+
+  feature_selection:
+    cmd: python src/features/selection.py
+    deps:
+      - data/features/X_engineered.csv
+      - data/features/y_engineered.csv
+      - src/features/selection.py
+      - params.yaml
+    outs:
+      - data/features/selected/X_train_selected.npy
+      - data/features/selected/X_test_selected.npy
+      - data/features/selected/X_train_scaled.npy
+      - data/features/selected/X_test_scaled.npy
+      - data/features/selected/y_train.csv
+      - data/features/selected/y_test.csv
+      - data/features/selected/selected_features.csv
+      - data/features/selected/scaler.pkl
+      - data/features/selected/rf_selector_model.pkl
+      - data/features/selected/feature_selector.pkl
+
+  train_models:
+    cmd: python src/model/train.py
+    deps:
+      - data/features/selected/X_train_selected.npy
+      - data/features/selected/y_train.csv
+      - src/model/train.py
+      - params.yaml
+    outs:
+      - models/logistic_regression.pkl
+      - models/random_forest.pkl
+      - models/gradient_boosting.pkl
+      - models/neural_network.pkl
+      - models/model_registry.csv
+
+  evaluate_models:
+    cmd: python src/model/evaluate.py
+    deps:
+      - data/features/selected/X_test_selected.npy
+      - data/features/selected/y_test.csv
+      - data/features/selected/selected_features.csv
+      - models/logistic_regression.pkl
+      - models/random_forest.pkl
+      - models/gradient_boosting.pkl
+      - models/neural_network.pkl
+      - src/model/evaluate.py
+      - params.yaml
+    metrics:
+      - models/evaluation/model_performance.csv:
+          cache: false
+    outs:
+      - models/evaluation/model_performance.csv
+      - models/evaluation/classification_reports.json
