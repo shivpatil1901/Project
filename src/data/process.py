@@ -20,8 +20,10 @@ def load_params(params_file="params.yaml"):
 def load_data(csv_path):
     """Load raw data from CSV"""
     df = pd.read_csv(csv_path)
+    df_sample = df.sample(n=min(200000, len(df)), random_state=42)
     print(f"✓ Loaded data with shape: {df.shape}")
-    return df
+    print(f"✓ Using sampled data with shape: {df_sample.shape}")
+    return df_sample
 
 
 def remove_missing_columns(df, threshold):
@@ -50,6 +52,13 @@ def create_target_variable(df):
     }
     
     df['loan_status_binary'] = df['loan_status'].map(loan_status_mapping)
+    unmapped_count = df['loan_status_binary'].isna().sum()
+    if unmapped_count > 0:
+        # Drop rows with unsupported/unknown target classes to keep labels clean.
+        df = df[df['loan_status_binary'].notna()].copy()
+        print(f"✓ Dropped {unmapped_count} rows with unmapped loan_status values")
+
+    df['loan_status_binary'] = df['loan_status_binary'].astype(int)
     df = df.drop('loan_status', axis=1)
     
     print(f"✓ Created target variable")
@@ -141,7 +150,7 @@ def remove_time_related_features(df):
     existing_cols = [col for col in time_feature_cols if col in df.columns]
     df = df.drop(columns=existing_cols, errors='ignore')
 
-    print(f"✓ Removed {len(existing_cols)} time-related features to prevent leakage")
+    print(f"Removed {len(existing_cols)} time-related features to prevent leakage")
     if existing_cols:
         print(f"  Removed features: {existing_cols}")
 

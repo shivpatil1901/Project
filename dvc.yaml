@@ -76,5 +76,4 @@ stages:
       - models/evaluation/model_performance.csv:
           cache: false
     outs:
-      - models/evaluation/model_performance.csv
       - models/evaluation/classification_reports.json

@@ -128,7 +128,7 @@ def feature_engineering(input_path=None, output_path=None, params_file="params.y
         input_path = Path(input_path)
     
     if output_path is None:
-        output_path = Path(params['data']['features'])
+        output_path = Path(params['data']['features_dir'])
     else:
         output_path = Path(output_path)
     

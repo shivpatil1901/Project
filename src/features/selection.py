@@ -75,7 +75,7 @@ def select_features_with_rf(X_train_scaled, X_test_scaled, y_train, X_columns,
     selected_mask = selector.get_support()
     selected_feature_names = X_columns[selected_mask]
     
-    print(f"✓ Random Forest feature selection (threshold={threshold})")
+    print(f"  Random Forest feature selection (threshold={threshold})")
     print(f"  Input features: {len(X_columns)}, Selected: {len(selected_feature_names)}")
     print(f"  Selected features: {list(selected_feature_names)}")
     
@@ -87,12 +87,12 @@ def feature_selection(input_path=None, output_path=None, params_file="params.yam
     params = load_params(params_file)
     
     if input_path is None:
-        input_path = Path(params['data']['features'])
+        input_path = Path(params['data']['features_dir'])
     else:
         input_path = Path(input_path)
     
     if output_path is None:
-        output_path = Path(params['data']['features']) / "selected"
+        output_path = Path(params['data']['features_dir']) / "selected"
     else:
         output_path = Path(output_path)
     

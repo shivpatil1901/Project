@@ -88,7 +88,7 @@ def evaluate_all_models(input_path=None, models_path=None, output_path=None, par
     params = load_params(params_file)
     
     if input_path is None:
-        input_path = Path(params['data']['features']) / "selected"
+        input_path = Path(params['data']['features_dir']) / "selected"
     else:
         input_path = Path(input_path)
     

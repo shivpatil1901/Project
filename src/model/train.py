@@ -83,7 +83,7 @@ def train_models(input_path=None, output_path=None, params_file="params.yaml"):
     params = load_params(params_file)
     
     if input_path is None:
-        input_path = Path(params['data']['features']) / "selected"
+        input_path = Path(params['data']['features_dir']) / "selected"
     else:
         input_path = Path(input_path)
     
