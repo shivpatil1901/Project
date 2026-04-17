@@ -8,14 +8,15 @@ data:
 # Processing Parameters
 processing:
   missing_threshold: 51  # Remove columns with >51% missing data
+  sample_size: 200000  
+  sample_random_state: 42
   test_size: 0.1  # 90/10 split for processed train/test artifacts
   random_state: 42
-  
+
 # Feature Engineering Parameters
 feature_engineering:
   correlation_threshold: 0.8  # Identify highly correlated feature pairs
   iv_threshold: 0.02  # Drop categorical features with IV < threshold
-  
 # Feature Selection Parameters
 feature_selection:
   test_size: 0.2
@@ -26,31 +27,39 @@ feature_selection:
 # Data Leakage Prevention
 leakage_prevention:
   leaky_features:
-    - total_rec_prncp
-    - total_rec_int
-    - total_rec_late_fee
-    - recoveries
-    - last_pymnt_amnt
-    - out_prncp
-
-# Model Training Parameters
+  - total_rec_prncp
+  - total_rec_int
+  - total_rec_late_fee
+  - recoveries
+  - last_pymnt_amnt
+  - out_prncp
 training:
   random_state: 42
-  
+
 models:
   logistic_regression:
     random_state: 42
-    
+
   random_forest:
-    n_estimators: 100
+    n_estimators: 200
     random_state: 42
-    
+
   gradient_boosting:
     n_estimators: 100
     random_state: 42
-    
+
   neural_network:
-    hidden_layer_sizes: [50, 25]
+    hidden_layer_sizes:
+    - 128
+    - 64
+    epochs: 10
     max_iter: 300
     random_state: 42
+    learning_rate_init: 0.001
     solver: adam
+
+# Experiment Controls (DVC + MLflow)
+experiment:
+  model_name: neural_network
+  mlflow_experiment_name: credit-risk-modeling
+  mlflow_tracking_uri: file:./mlruns

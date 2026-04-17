@@ -7,7 +7,14 @@ stages:
     deps:
       - data/loan.csv
       - src/data/process.py
-      - params.yaml
+    params:
+      - data.raw_path
+      - data.processed_dir
+      - processing.missing_threshold
+      - processing.sample_size
+      - processing.sample_random_state
+      - processing.test_size
+      - processing.random_state
     outs:
       - data/processed/X_processed.csv
       - data/processed/y.csv
@@ -22,7 +29,11 @@ stages:
       - data/processed/X_processed.csv
       - data/processed/y.csv
       - src/features/engineer.py
-      - params.yaml
+    params:
+      - data.processed_dir
+      - data.features_dir
+      - feature_engineering.correlation_threshold
+      - feature_engineering.iv_threshold
     outs:
       - data/features/X_engineered.csv
       - data/features/y_engineered.csv
@@ -33,7 +44,13 @@ stages:
       - data/features/X_engineered.csv
       - data/features/y_engineered.csv
       - src/features/selection.py
-      - params.yaml
+    params:
+      - data.features_dir
+      - leakage_prevention.leaky_features
+      - feature_selection.test_size
+      - feature_selection.random_state
+      - feature_selection.rf_n_estimators
+      - feature_selection.rf_threshold
     outs:
       - data/features/selected/X_train_selected.npy
       - data/features/selected/X_test_selected.npy
@@ -52,7 +69,10 @@ stages:
       - data/features/selected/X_train_selected.npy
       - data/features/selected/y_train.csv
       - src/model/train.py
-      - params.yaml
+    params:
+      - data.features_dir
+      - data.models_dir
+      - models
     outs:
       - models/logistic_regression.pkl
       - models/random_forest.pkl
@@ -71,9 +91,33 @@ stages:
       - models/gradient_boosting.pkl
       - models/neural_network.pkl
       - src/model/evaluate.py
-      - params.yaml
+    params:
+      - data.features_dir
+      - data.models_dir
     metrics:
       - models/evaluation/model_performance.csv:
           cache: false
     outs:
       - models/evaluation/classification_reports.json
+
+  train_model_mlflow:
+    cmd: python src/model/train_mlflow.py --model-name ${experiment.model_name}
+    deps:
+      - data/features/selected/X_train_selected.npy
+      - data/features/selected/y_train.csv
+      - data/features/selected/X_test_selected.npy
+      - data/features/selected/y_test.csv
+      - src/model/train_mlflow.py
+    params:
+      - data.features_dir
+      - data.models_dir
+      - experiment.model_name
+      - experiment.mlflow_experiment_name
+      - experiment.mlflow_tracking_uri
+      - models
+    metrics:
+      - models/experiments/metrics.json:
+          cache: false
+    outs:
+      - models/experiments/model.pkl
+      - models/experiments/run_info.json
