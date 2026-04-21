@@ -1,6 +1,6 @@
 # Data Paths
 data:
-  raw_path: data/loan.csv
+  raw_path: data/loan_data.csv
   processed_dir: data/processed
   features_dir: data/features
   models_dir: models
@@ -8,8 +8,6 @@ data:
 # Processing Parameters
 processing:
   missing_threshold: 51  # Remove columns with >51% missing data
-  sample_size: 200000  
-  sample_random_state: 42
   test_size: 0.1  # 90/10 split for processed train/test artifacts
   random_state: 42
 

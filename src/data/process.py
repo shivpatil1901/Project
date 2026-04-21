@@ -18,12 +18,10 @@ def load_params(params_file="params.yaml"):
 
 
 def load_data(csv_path):
-    """Load raw data from CSV"""
+    """Load pre-sampled input data from CSV."""
     df = pd.read_csv(csv_path)
-    df_sample = df.sample(n=min(200000, len(df)), random_state=42)
-    print(f"✓ Loaded data with shape: {df.shape}")
-    print(f"✓ Using sampled data with shape: {df_sample.shape}")
-    return df_sample
+    print(f" Loaded input data with shape: {df.shape}")
+    return df
 
 
 def remove_missing_columns(df, threshold):

@@ -5,14 +5,12 @@ stages:
   process_data:
     cmd: python src/data/process.py
     deps:
-      - data/loan.csv
+      - data/loan_data.csv
       - src/data/process.py
     params:
       - data.raw_path
       - data.processed_dir
       - processing.missing_threshold
-      - processing.sample_size
-      - processing.sample_random_state
       - processing.test_size
       - processing.random_state
     outs:
