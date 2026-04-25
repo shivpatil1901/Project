@@ -2,7 +2,7 @@
 
 A modular, DVC-orchestrated machine learning pipeline for building credit risk models with proper data leakage prevention.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
@@ -31,7 +31,7 @@ params.yaml                # Configuration & hyperparameters
 dvc.yaml                   # DVC pipeline definition
 ```
 
-## 🚀 Running the Pipeline
+## Running the Pipeline
 
 ### Option 1: Run Complete Pipeline with DVC
 ```bash
@@ -61,7 +61,7 @@ python src/model/evaluate.py
 python src/pipeline.py
 ```
 
-## 🔧 Configuration
+## Configuration
 
 All parameters are centralized in `params.yaml`:
 
@@ -73,7 +73,7 @@ All parameters are centralized in `params.yaml`:
 
 Edit `params.yaml` to customize pipeline behavior.
 
-## 📊 Pipeline Stages
+## Pipeline Stages
 
 ### 1. Data Processing (`src/data/process.py`)
 - Load raw CSV data
@@ -135,7 +135,7 @@ Trains 4 models on selected features:
 - `model_performance.csv` (summary metrics)
 - `classification_reports.json` (detailed per-model reports)
 
-## 🛡️ Data Leakage Prevention
+## Data Leakage Prevention
 
 The pipeline removes outcome-dependent features **before** Random Forest feature selection:
 
@@ -152,7 +152,7 @@ leaky_features = {
 
 This ensures Random Forest cannot select features that wouldn't be available at prediction time.
 
-## 📈 Integration with MLflow
+## Integration with MLflow
 
 Track experiments with MLflow:
 
@@ -170,17 +170,17 @@ with mlflow.start_run():
     mlflow.sklearn.log_model(model, "model")
 ```
 
-## 📋 Key Features
+## Key Features
 
-✅ **Modular Architecture**: Each stage is independent and reusable
-✅ **DVC Integration**: Full pipeline orchestration and version control
-✅ **Leakage Prevention**: Removes outcome-dependent features before feature selection
-✅ **Parameterized**: All configs in `params.yaml`, no hardcoding
-✅ **Reproducibility**: Fixed random seeds, stratified splits
-✅ **Scalability**: Ready for MLflow experiment tracking
-✅ **Clean Output**: Metrics saved as CSV/JSON for upstream consumption
+**Modular Architecture**: Each stage is independent and reusable
+**DVC Integration**: Full pipeline orchestration and version control
+**Leakage Prevention**: Removes outcome-dependent features before feature selection
+**Parameterized**: All configs in `params.yaml`, no hardcoding
+**Reproducibility**: Fixed random seeds, stratified splits
+**Scalability**: Ready for MLflow experiment tracking
+**Clean Output**: Metrics saved as CSV/JSON for upstream consumption
 
-## 🔄 Rerunning/Modifying Pipeline
+## Rerunning/Modifying Pipeline
 
 ### Change hyperparameters:
 ```yaml
@@ -204,7 +204,7 @@ DVC will only rerun affected stages.
 3. Add to `train_models()` function
 4. Run `dvc repro`
 
-## 📦 Requirements
+## Requirements
 
 ```
 pandas>=1.3.0
@@ -219,7 +219,7 @@ Install with:
 pip install -r requirements.txt
 ```
 
-## 🎯 Next Steps
+## Next Steps
 
 1. **Run the pipeline**: `dvc repro`
 2. **Review results**: Check `models/evaluation/model_performance.csv`

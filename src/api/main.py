@@ -95,6 +95,7 @@ class InferenceService:
         self.feature_name_set = set(self.feature_names)
         self.model_uri = self._resolve_model_uri()
         self.model, self.sklearn_model = self._load_model(self.model_uri)
+        self.model_backend = "sklearn" if self.sklearn_model is not None else "pyfunc"
         self._align_feature_schema_with_model()
         self.expected_feature_count = self._infer_expected_feature_count()
         self.feature_descriptions = self._load_feature_descriptions()
@@ -263,6 +264,31 @@ class InferenceService:
             sklearn_model = None
         return pyfunc_model, sklearn_model
 
+    def _extract_default_probability_from_proba(
+        self,
+        proba: np.ndarray,
+        classes: np.ndarray | None,
+    ) -> np.ndarray:
+        """Return probability for default class (0) using model class mapping when available."""
+        proba_arr = np.asarray(proba, dtype=float)
+        if proba_arr.ndim == 1:
+            return np.clip(proba_arr, 0.0, 1.0)
+
+        if classes is not None:
+            classes_arr = np.asarray(classes)
+            default_idx = np.where(classes_arr == 0)[0]
+            if default_idx.size > 0:
+                return np.clip(proba_arr[:, int(default_idx[0])], 0.0, 1.0)
+
+            good_idx = np.where(classes_arr == 1)[0]
+            if good_idx.size > 0 and proba_arr.shape[1] >= 2:
+                return np.clip(1.0 - proba_arr[:, int(good_idx[0])], 0.0, 1.0)
+
+        # Last-resort heuristic for binary outputs when class labels are unavailable.
+        if proba_arr.shape[1] >= 2:
+            return np.clip(proba_arr[:, 0], 0.0, 1.0)
+        return np.clip(proba_arr.reshape(-1), 0.0, 1.0)
+
     def _load_feature_defaults_and_binary(self) -> tuple[dict[str, float], list[str]]:
         """Load realistic defaults (medians) and detect binary 0/1 flags from training features."""
         engineered_path = Path(
@@ -334,12 +360,21 @@ class InferenceService:
 
     def _predict_default_probability(self, X: pd.DataFrame) -> np.ndarray:
         if self.sklearn_model is not None and hasattr(self.sklearn_model, "predict_proba"):
-            return np.asarray(self.sklearn_model.predict_proba(X)[:, 1], dtype=float)
+            proba = self.sklearn_model.predict_proba(X)
+            classes = getattr(self.sklearn_model, "classes_", None)
+            return self._extract_default_probability_from_proba(proba, classes)
 
         if hasattr(self.model, "predict_proba"):
-            return np.asarray(self.model.predict_proba(X)[:, 1], dtype=float)
+            proba = self.model.predict_proba(X)
+            classes = getattr(self.model, "classes_", None)
+            return self._extract_default_probability_from_proba(proba, classes)
 
         raw_preds = np.asarray(self.model.predict(X), dtype=float)
+        raw_preds = raw_preds.reshape(-1)
+        # If pyfunc returns hard class labels trained as 1=good, 0=default,
+        # convert them to default-probability-like outputs.
+        if np.all(np.isin(np.unique(raw_preds), [0.0, 1.0])):
+            return np.clip(1.0 - raw_preds, 0.0, 1.0)
         return np.clip(raw_preds, 0.0, 1.0)
 
     def _prepare_model_input(self, X_raw: pd.DataFrame) -> pd.DataFrame:
@@ -425,9 +460,7 @@ class InferenceService:
     def predict(self, payload: dict[str, Any]) -> tuple[float, int]:
         X_raw = self.preprocess(payload)
         X = self._prepare_model_input(X_raw)
-        prob_good = float(self._predict_default_probability(X)[0])
-        # Flip to probability of default (model was trained with 1=good, 0=default)
-        prob = 1.0 - prob_good
+        prob = float(self._predict_default_probability(X)[0])
         pred_class = int(prob >= 0.5)
         return prob, pred_class
 
@@ -440,31 +473,25 @@ class InferenceService:
     def explain(self, payload: dict[str, Any], top_k: int = 10) -> dict[str, Any]:
         X_raw = self.preprocess(payload)
         X = self._prepare_model_input(X_raw)
-        prob_good = float(self._predict_default_probability(X)[0])
-        # Flip to probability of default (model was trained with 1=good, 0=default)
-        prob = 1.0 - prob_good
+        prob = float(self._predict_default_probability(X)[0])
 
         explainer = self._get_shap_explainer()
         shap_result = explainer(X)
 
         shap_values = np.asarray(shap_result.values).reshape(-1)
         base_values = np.asarray(shap_result.base_values).reshape(-1)
-        base_value_good = float(base_values[0]) if base_values.size > 0 else 0.0
-        # Flip base value: when we flip prediction, base value also flips
-        base_value = 1.0 - base_value_good
+        base_value = float(base_values[0]) if base_values.size > 0 else 0.0
 
         details = []
         for idx, feature in enumerate(self.feature_names):
             feature_value = float(X_raw.iloc[0, idx])
             shap_value = float(shap_values[idx])
-            # Negate SHAP values: when prediction flips, contributions flip sign
-            flipped_shap_value = -shap_value
             details.append(
                 {
                     "feature": feature,
                     "feature_value": feature_value,
-                    "shap_value": flipped_shap_value,
-                    "abs_shap_value": abs(flipped_shap_value),
+                    "shap_value": shap_value,
+                    "abs_shap_value": abs(shap_value),
                 }
             )
 
@@ -539,6 +566,10 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "model_uri": service.model_uri,
+        "model_backend": service.model_backend,
+        "supports_predict_proba": bool(
+            service.sklearn_model is not None and hasattr(service.sklearn_model, "predict_proba")
+        ),
         "required_features": service.feature_names,
         "expected_feature_count": service.expected_feature_count,
         "feature_descriptions": service.feature_descriptions,
