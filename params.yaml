@@ -39,7 +39,7 @@ models:
     random_state: 42
 
   random_forest:
-    n_estimators: 200
+    n_estimators: 300
     random_state: 42
 
   gradient_boosting:
@@ -58,6 +58,6 @@ models:
 
 # Experiment Controls (DVC + MLflow)
 experiment:
-  model_name: neural_network
+  model_name: random_forest
   mlflow_experiment_name: credit-risk-modeling
   mlflow_tracking_uri: file:./mlruns

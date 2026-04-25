@@ -82,12 +82,9 @@ with DAG(
     )
 
     process_data = BashOperator(
-        task_id="process_data_stage",
-        bash_command=(
-            "cd {{ params.project_root }} && "
-            "python src/data/process.py"
-        ),
-        params={"project_root": str(PROJECT_ROOT)},
+    task_id="process_data_stage",
+    bash_command="cd {{ params.project_root }} && dvc repro process_data",
+    params={"project_root": str(PROJECT_ROOT)},
     )
 
     validate_outputs = PythonOperator(

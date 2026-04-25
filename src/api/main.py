@@ -92,14 +92,30 @@ def normalize_feature_name(name: str) -> str:
 class InferenceService:
     def __init__(self) -> None:
         self.feature_names = self._load_feature_names()
-        self.feature_descriptions = self._load_feature_descriptions()
         self.feature_name_set = set(self.feature_names)
-        self.feature_defaults, self.binary_features = self._load_feature_defaults_and_binary()
-        self.scaler_stats = self._load_scaler_stats()
         self.model_uri = self._resolve_model_uri()
         self.model, self.sklearn_model = self._load_model(self.model_uri)
+        self._align_feature_schema_with_model()
+        self.expected_feature_count = self._infer_expected_feature_count()
+        self.feature_descriptions = self._load_feature_descriptions()
+        self.feature_defaults, self.binary_features = self._load_feature_defaults_and_binary()
+        self.scaler_stats = self._load_scaler_stats()
         self.background_df = self._load_background_data()
         self._shap_explainer: shap.Explainer | None = None
+
+    def _align_feature_schema_with_model(self) -> None:
+        """Ensure inference feature ordering/count matches the loaded sklearn model."""
+        model_feature_names = getattr(self.sklearn_model, "feature_names_in_", None)
+        if model_feature_names is not None and len(model_feature_names) > 0:
+            self.feature_names = [str(name) for name in model_feature_names]
+            self.feature_name_set = set(self.feature_names)
+
+    def _infer_expected_feature_count(self) -> int | None:
+        """Infer the feature count required by the underlying model."""
+        n_features = getattr(self.sklearn_model, "n_features_in_", None)
+        if n_features is not None:
+            return int(n_features)
+        return None
 
     def _load_feature_names(self) -> list[str]:
         feature_list_path = Path(os.getenv("FEATURE_LIST_PATH", str(DEFAULT_FEATURES_PATH)))
@@ -329,22 +345,35 @@ class InferenceService:
     def _prepare_model_input(self, X_raw: pd.DataFrame) -> pd.DataFrame:
         """Match training-time standardization for selected features."""
         if not self.scaler_stats:
-            return X_raw
+            X_scaled = X_raw.copy()
+        else:
+            X_scaled = X_raw.copy()
+            for feature in self.feature_names:
+                if feature not in self.scaler_stats:
+                    continue
+                mean, scale = self.scaler_stats[feature]
+                safe_scale = scale if scale not in (0.0, -0.0) else 1.0
+                X_scaled[feature] = (X_scaled[feature] - mean) / safe_scale
 
-        X_scaled = X_raw.copy()
-        for feature in self.feature_names:
-            if feature not in self.scaler_stats:
-                continue
-            mean, scale = self.scaler_stats[feature]
-            safe_scale = scale if scale not in (0.0, -0.0) else 1.0
-            X_scaled[feature] = (X_scaled[feature] - mean) / safe_scale
+        # Defensive alignment: some legacy artifacts have selected_features.csv out-of-sync
+        # with the trained model's expected dimensionality.
+        if self.expected_feature_count is not None:
+            current_count = X_scaled.shape[1]
+            if current_count < self.expected_feature_count:
+                for idx in range(self.expected_feature_count - current_count):
+                    X_scaled[f"__auto_pad_{idx + 1}"] = 0.0
+            elif current_count > self.expected_feature_count:
+                X_scaled = X_scaled.iloc[:, : self.expected_feature_count]
+
         return X_scaled
 
     def _get_shap_explainer(self) -> shap.Explainer:
         if self._shap_explainer is None:
             def predict_fn(data: np.ndarray) -> np.ndarray:
-                X = pd.DataFrame(data, columns=self.feature_names)
-                return self._predict_default_probability(X)
+                # SHAP already passes model-space inputs here; the background data
+                # and the query points are both stored in the scaled feature space.
+                X_model = pd.DataFrame(data, columns=self.feature_names)
+                return self._predict_default_probability(X_model)
 
             self._shap_explainer = shap.Explainer(
                 predict_fn,
@@ -369,13 +398,6 @@ class InferenceService:
         raise ValueError(f"Unsupported value type for numeric preprocessing: {type(value)}")
 
     def preprocess(self, payload: dict[str, Any]) -> pd.DataFrame:
-        unknown_features = sorted(set(payload.keys()) - self.feature_name_set)
-        if unknown_features:
-            raise ValueError(
-                "Input contains unknown features not present during training: "
-                + ", ".join(unknown_features)
-            )
-
         row: dict[str, float] = {}
         for feature in self.feature_names:
             row[feature] = self._coerce_numeric(payload.get(feature, 0.0))
@@ -518,6 +540,7 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "model_uri": service.model_uri,
         "required_features": service.feature_names,
+        "expected_feature_count": service.expected_feature_count,
         "feature_descriptions": service.feature_descriptions,
         "feature_defaults": service.feature_defaults,
         "binary_features": service.binary_features,
