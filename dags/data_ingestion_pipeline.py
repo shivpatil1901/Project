@@ -66,12 +66,12 @@ with DAG(
     default_args=default_args,
     description="Ingest raw loan data and run processing stage",
     start_date=datetime(2026, 4, 1),
-    schedule="0 2 * * *",
+    schedule="0 2,14 * * *",
     catchup=False,
     tags=["credit-risk", "ingestion", "data"],
 ) as dag:
 
-    validate_source = PythonOperator(
+    validate_source = PythonOperator(   
         task_id="validate_raw_source",
         python_callable=validate_raw_source,
     )

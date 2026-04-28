@@ -19,6 +19,7 @@ PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://127.0.0.1:9090")
 GRAFANA_URL = os.getenv("GRAFANA_URL", "http://127.0.0.1:3000")
 MLFLOW_URL = os.getenv("MLFLOW_URL", "http://127.0.0.1:5000")
 AIRFLOW_URL = os.getenv("AIRFLOW_URL", "http://127.0.0.1:8080")
+AIRFLOW_PUBLIC_URL = os.getenv("AIRFLOW_PUBLIC_URL", "http://localhost:8081")
 AIRFLOW_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "credit_risk_data_ingestion")
 AIRFLOW_USER = os.getenv("AIRFLOW_USER", "airflow")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "airflow")
@@ -65,14 +66,14 @@ def _service_health(url: str, endpoint: str = "/") -> tuple[bool, str]:
     # Airflow 3 moved health to /api/v2/monitor/health; keep backward fallback.
     if endpoint == "/health":
         try:
-            response = requests.get(f"{url.rstrip('/')}/api/v2/monitor/health", timeout=8)
+            response = requests.get(f"{url.rstrip('/')}/api/v2/monitor/health", timeout=4)
             response.raise_for_status()
             return True, "reachable"
         except Exception:
             pass
 
     try:
-        response = requests.get(f"{url.rstrip('/')}{endpoint}", timeout=8)
+        response = requests.get(f"{url.rstrip('/')}{endpoint}", timeout=4)
         # Some services (for example MLflow behind stricter defaults) may return
         # 401/403 for unauthenticated root requests while still being healthy.
         if response.status_code in (401, 403):
@@ -101,6 +102,7 @@ def _prom_query(query: str) -> float | None:
         return None
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def _fetch_airflow_dag_runs(limit: int = 20) -> pd.DataFrame:
     endpoints = [
         f"{AIRFLOW_URL}/api/v1/dags/{AIRFLOW_DAG_ID}/dagRuns",
@@ -114,7 +116,7 @@ def _fetch_airflow_dag_runs(limit: int = 20) -> pd.DataFrame:
                     endpoint,
                     params={"limit": limit, "order_by": "-start_date"},
                     auth=auth,
-                    timeout=12,
+                    timeout=4,
                 )
                 response.raise_for_status()
                 payload = response.json()
@@ -550,7 +552,8 @@ def render_pipeline_ops_console() -> None:
     st.markdown("---")
     st.subheader("Error, Failure, and Success Tracking")
 
-    airflow_runs = _fetch_airflow_dag_runs(limit=25)
+    airflow_ok, _ = _service_health(AIRFLOW_URL, endpoint="/health")
+    airflow_runs = _fetch_airflow_dag_runs(limit=25) if airflow_ok else pd.DataFrame()
     mlflow_runs = _fetch_mlflow_runs(max_results=25)
 
     a_success = int((airflow_runs["state"] == "success").sum()) if not airflow_runs.empty and "state" in airflow_runs.columns else 0
@@ -604,7 +607,7 @@ def render_pipeline_ops_console() -> None:
     st.subheader("Tool Navigation")
     st.markdown(
         f"""
-        - Airflow UI: {AIRFLOW_URL}
+        - Airflow UI: {AIRFLOW_PUBLIC_URL}
         - MLflow UI: {MLFLOW_URL}
         - Prometheus UI: {PROMETHEUS_URL}
         - Grafana UI: {GRAFANA_URL}

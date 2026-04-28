@@ -22,6 +22,7 @@ x-airflow-common:
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     _PIP_ADDITIONAL_REQUIREMENTS: ''
+
   volumes:
     - ./dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
@@ -37,10 +38,6 @@ x-airflow-common:
       condition: service_healthy
 
 services:
-
-  # ──────────────────────────────────────────
-  # Your existing services
-  # ──────────────────────────────────────────
 
   backend:
     build:
@@ -69,6 +66,7 @@ services:
       GRAFANA_URL: http://grafana:3000
       MLFLOW_URL: http://mlflow:5000
       AIRFLOW_URL: http://airflow-apiserver:8080   # internal port stays 8080, external is 8081
+      AIRFLOW_PUBLIC_URL: http://localhost:8081
       AIRFLOW_DAG_ID: credit_risk_data_ingestion
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
@@ -133,9 +131,7 @@ services:
       - .:/app
     restart: unless-stopped
 
-  # ──────────────────────────────────────────
   # Airflow infrastructure
-  # ──────────────────────────────────────────
 
   airflow-postgres:
     image: postgres:16
@@ -188,12 +184,13 @@ services:
     user: "0:0"
     restart: on-failure
 
+
   airflow-apiserver:
     <<: *airflow-common
     container_name: credit-risk-airflow-apiserver
     command: api-server
     ports:
-      - "8081:8080"
+      - "8081:8080"   
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
       interval: 30s
