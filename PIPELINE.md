@@ -1,233 +1,211 @@
-# Credit Risk Modeling Pipeline
+# Credit Risk MLOps Pipeline
 
-A modular, DVC-orchestrated machine learning pipeline for building credit risk models with proper data leakage prevention.
+This repository contains an end-to-end credit risk MLOps workflow for data processing, feature engineering, feature selection, model training, experiment tracking, API serving, UI inference, monitoring, and scheduled ingestion.
 
-## Project Structure
+## 1. Repository Overview
 
-```
-src/
-├── data/
-│   └── process.py          # Data loading, cleaning, feature extraction
-├── features/
-│   ├── engineer.py         # Feature engineering & correlation analysis
-│   └── selection.py        # Feature selection, train/test split, scaling
-├── model/
-│   ├── train.py            # Model training (LR, RF, GB, NN)
-│   └── evaluate.py         # Model evaluation & metrics calculation
-└── pipeline.py             # Main orchestrator
+### Core code paths
 
-data/
-├── loan.csv                # Raw input data
-├── processed/              # L1: Processed data
-├── features/               # L2: Engineered features
-└── features/selected/      # L3: Selected features (train/test)
+- [src/data/process.py](src/data/process.py): raw data cleaning, target creation, preprocessing, and train/test split artifacts.
+- [src/features/engineer.py](src/features/engineer.py): correlation analysis, WoE/IV summaries, and engineered feature generation.
+- [src/features/selection.py](src/features/selection.py): leakage removal, scaling, random-forest feature selection, and selected matrix export.
+- [src/model/train.py](src/model/train.py): multi-model training for the local pipeline.
+- [src/model/evaluate.py](src/model/evaluate.py): model evaluation and metrics export.
+- [src/model/train_mlflow.py](src/model/train_mlflow.py): single-model training with MLflow logging.
+- [src/api/main.py](src/api/main.py): FastAPI inference service, SHAP explainability, and Prometheus metrics.
+- [streamlit_app.py](streamlit_app.py): Streamlit UI for interactive inference.
+- [src/pipeline.py](src/pipeline.py): Python entry point for orchestrating the local pipeline.
 
-models/
-├── *.pkl                   # Trained model artifacts
-├── evaluation/             # Metrics & reports
-└── model_registry.csv      # Model tracking
+### Supporting project assets
 
-params.yaml                # Configuration & hyperparameters
-dvc.yaml                   # DVC pipeline definition
-```
+- [dvc.yaml](dvc.yaml): reproducible pipeline definition.
+- [params.yaml](params.yaml): data paths, thresholds, model settings, and experiment parameters.
+- [docker-compose.yml](docker-compose.yml): runtime stack for backend, frontend, MLflow, Prometheus, Grafana, and Airflow.
+- [airflow/dags/data_ingestion_pipeline.py](airflow/dags/data_ingestion_pipeline.py): Airflow ingestion workflow.
+- [monitoring/prometheus/prometheus.yml](monitoring/prometheus/prometheus.yml): Prometheus scrape configuration.
+- [monitoring/grafana/dashboards/credit_risk_monitoring.json](monitoring/grafana/dashboards/credit_risk_monitoring.json): dashboard definition.
+- [docs/HLD.md](docs/HLD.md), [docs/LLD.md](docs/LLD.md), [docs/testing.md](docs/testing.md): design and validation docs.
 
-## Running the Pipeline
+## 2. Data Flow
 
-### Option 1: Run Complete Pipeline with DVC
+The pipeline currently uses [data/loan_data.csv](data/loan_data.csv) as the active raw input. The DVC stages transform that file into processed, engineered, selected, and evaluation artifacts.
+
+### Stage 1: Data Processing
+
+- Input: `data/loan_data.csv`
+- Script: [src/data/process.py](src/data/process.py)
+- Main tasks:
+  - load and clean raw records
+  - create the target label
+  - remove high-missingness columns
+  - convert categorical and date fields
+  - generate numeric features
+  - write train/test split artifacts
+
+### Stage 2: Feature Engineering
+
+- Input: processed feature matrix and target
+- Script: [src/features/engineer.py](src/features/engineer.py)
+- Main tasks:
+  - compute correlation statistics
+  - compute WoE/IV summaries
+  - remove highly correlated features
+  - create derived ratios and other engineered fields
+
+### Stage 3: Feature Selection
+
+- Input: engineered data
+- Script: [src/features/selection.py](src/features/selection.py)
+- Main tasks:
+  - remove leakage-prone fields before selection
+  - split and scale data
+  - train a random forest selector
+  - persist selected feature matrices and selector artifacts
+
+### Stage 4: Model Training
+
+- Input: selected training data
+- Script: [src/model/train.py](src/model/train.py)
+- Main tasks:
+  - train multiple candidate models
+  - persist trained model artifacts
+  - maintain a model registry file
+
+### Stage 5: Model Evaluation
+
+- Input: selected test data and trained models
+- Script: [src/model/evaluate.py](src/model/evaluate.py)
+- Main tasks:
+  - compute classification metrics
+  - write summary metrics and detailed reports
+
+## 3. Reproducible Pipeline With DVC
+
+The pipeline is defined in [dvc.yaml](dvc.yaml) and can be reproduced with:
+
 ```bash
 dvc repro
 ```
 
-### Option 2: Run Individual Steps
+Tracked stages:
+
+- `process_data`
+- `feature_engineering`
+- `feature_selection`
+- `train_models`
+- `evaluate_models`
+- `train_model_mlflow`
+
+Each stage declares its dependencies, parameters, and outputs so DVC reruns only the impacted steps when inputs change.
+
+## 4. MLflow Experiment Tracking
+
+The repository includes a separate MLflow training path through [src/model/train_mlflow.py](src/model/train_mlflow.py).
+
+Typical usage:
+
 ```bash
-# Step 1: Process raw data
+python src/model/train_mlflow.py --model-name neural_network
+```
+
+The corresponding DVC stage is `train_model_mlflow`, which logs:
+
+- model parameters
+- metrics
+- model artifact
+- run metadata in [models/experiments/run_info.json](models/experiments/run_info.json)
+
+## 5. Serving and Monitoring
+
+### FastAPI backend
+
+- Start with `uvicorn src.api.main:app --host 0.0.0.0 --port 8000`
+- Exposes endpoints for health, prediction, batch prediction, explanations, and metrics
+
+### Streamlit frontend
+
+- Start with `streamlit run streamlit_app.py`
+- Calls the backend over REST using `BACKEND_URL`
+
+### Prometheus and Grafana
+
+- Prometheus scrapes metrics from the backend at `/metrics`
+- Grafana dashboards visualize request counts, latency, and drift metrics
+
+The monitoring stack is configured in [docker-compose.yml](docker-compose.yml) and [monitoring/prometheus/prometheus.yml](monitoring/prometheus/prometheus.yml).
+
+## 6. Airflow Integration
+
+Airflow is used for scheduled ingestion and can run independently of the frontend.
+
+Relevant files:
+
+- [airflow/dags/data_ingestion_pipeline.py](airflow/dags/data_ingestion_pipeline.py)
+- [airflow/Dockerfile](airflow/Dockerfile)
+- [airflow/config](airflow/config)
+- [airflow/logs](airflow/logs)
+- [airflow/plugins](airflow/plugins)
+
+To start the Airflow services later, use the Airflow service set in [docker-compose.yml](docker-compose.yml).
+
+## 7. Key Artifacts
+
+- Processed data: [data/processed](data/processed)
+- Engineered features: [data/features](data/features)
+- Selected features: [data/features/selected](data/features/selected)
+- Trained models: [models](models)
+- Evaluation metrics: [models/evaluation/model_performance.csv](models/evaluation/model_performance.csv)
+- MLflow run metadata: [models/experiments/run_info.json](models/experiments/run_info.json)
+
+## 8. How To Run
+
+### Local pipeline
+
+```bash
+dvc repro
+```
+
+### Individual stages
+
+```bash
 python src/data/process.py
-
-# Step 2: Engineer features
 python src/features/engineer.py
-
-# Step 3: Select features & create train/test split
 python src/features/selection.py
-
-# Step 4: Train models
 python src/model/train.py
-
-# Step 5: Evaluate models
 python src/model/evaluate.py
 ```
 
-### Option 3: Run Full Pipeline Programmatically
-```bash
-python src/pipeline.py
-```
-
-## Configuration
-
-All parameters are centralized in `params.yaml`:
-
-- **Data paths**: Raw and output directories
-- **Processing thresholds**: Missing data tolerance, correlation thresholds
-- **Feature selection**: Random Forest parameters, test/train split ratio
-- **Model hyperparameters**: per-model configuration
-- **Leakage prevention**: List of outcome-dependent features to remove
-
-Edit `params.yaml` to customize pipeline behavior.
-
-## Pipeline Stages
-
-### 1. Data Processing (`src/data/process.py`)
-- Load raw CSV data
-- Create binary target variable (loan_status_binary)
-- Remove columns with >51% missing data
-- Convert categorical and date columns
-- Engineer temporal features (loan_age, time_since_last_payment, etc.)
-- One-hot encode categorical variables
-- Impute remaining missing values
-
-**Output**: `X_processed.csv`, `y.csv`
-
-### 2. Feature Engineering (`src/features/engineer.py`)
-- Calculate Weight of Evidence (WoE) and Information Value (IV) for categorical features
-- Perform correlation analysis with target
-- Identify and drop highly correlated feature pairs
-- Engineer new features (loan_amnt_div_instlmnt ratio)
-- Remove bulk features with low predictive power
-
-**Output**: `X_engineered.csv`, `y_engineered.csv`
-
-### 3. Feature Selection (`src/features/selection.py`)
-- **Remove leaky features** (outcome-dependent) BEFORE selection
-  - total_rec_prncp, total_rec_int, total_rec_late_fee, recoveries, last_pymnt_amnt, out_prncp
-- Train/test split (80/20)
-- Standardize features with StandardScaler
-- Train Random Forest for feature importance
-- Select features with importance > mean threshold
-
-**Output**: 
-- `X_train_selected.npy`, `X_test_selected.npy` (selected features)
-- `X_train_scaled.npy`, `X_test_scaled.npy` (all features, scaled)
-- `y_train.csv`, `y_test.csv`
-- `selected_features.csv` (feature names)
-- `scaler.pkl`, `rf_selector_model.pkl`, `feature_selector.pkl`
-
-### 4. Model Training (`src/model/train.py`)
-Trains 4 models on selected features:
-- **Logistic Regression**: Interpretable baseline
-- **Random Forest**: Ensemble with feature importance
-- **Gradient Boosting**: High-performance gradient boosting
-- **Neural Network**: Multi-layer perceptron
-
-**Output**: 
-- `logistic_regression.pkl`
-- `random_forest.pkl`
-- `gradient_boosting.pkl`
-- `neural_network.pkl`
-- `model_registry.csv` (model tracking)
-
-### 5. Model Evaluation (`src/model/evaluate.py`)
-- Load trained models and test data
-- Calculate comprehensive metrics:
-  - Accuracy, Precision, Recall, F1, F2, AUC
-  - Confusion Matrix (TN, FP, FN, TP)
-  - Classification Reports
-
-**Output**:
-- `model_performance.csv` (summary metrics)
-- `classification_reports.json` (detailed per-model reports)
-
-## Data Leakage Prevention
-
-The pipeline removes outcome-dependent features **before** Random Forest feature selection:
-
-```python
-leaky_features = {
-    'total_rec_prncp',      # Only known after loan settlement
-    'total_rec_int',        # Only accrues if borrower pays
-    'total_rec_late_fee',   # Only if payment missed
-    'recoveries',           # Only if default occurred
-    'last_pymnt_amnt',      # Evaluation-time snapshot
-    'out_prncp'             # Outcome-driven balance
-}
-```
-
-This ensures Random Forest cannot select features that wouldn't be available at prediction time.
-
-## Integration with MLflow
-
-Track experiments with MLflow:
+### Full platform stack
 
 ```bash
-# Start MLflow UI
-mlflow ui
-
-# In your scripts, add MLflow logging
-import mlflow
-
-with mlflow.start_run():
-    mlflow.log_params(params)
-    results = evaluate_all_models()
-    mlflow.log_metrics(results)
-    mlflow.sklearn.log_model(model, "model")
+docker compose up -d
 ```
 
-## Key Features
+### Frontend without Airflow
 
-**Modular Architecture**: Each stage is independent and reusable
-**DVC Integration**: Full pipeline orchestration and version control
-**Leakage Prevention**: Removes outcome-dependent features before feature selection
-**Parameterized**: All configs in `params.yaml`, no hardcoding
-**Reproducibility**: Fixed random seeds, stratified splits
-**Scalability**: Ready for MLflow experiment tracking
-**Clean Output**: Metrics saved as CSV/JSON for upstream consumption
-
-## Rerunning/Modifying Pipeline
-
-### Change hyperparameters:
-```yaml
-# params.yaml
-models:
-  random_forest:
-    n_estimators: 200  # was 100
-    random_state: 42
-```
-
-Then run:
 ```bash
-dvc repro
+docker compose up -d frontend
 ```
 
-DVC will only rerun affected stages.
+### Airflow later
 
-### Add new model:
-1. Add config to `params.yaml`
-2. Implement `train_<model>()` in `src/model/train.py`
-3. Add to `train_models()` function
-4. Run `dvc repro`
-
-## Requirements
-
-```
-pandas>=1.3.0
-numpy>=1.20.0
-scikit-learn>=1.0.0
-pyyaml>=5.4.0
-joblib>=1.1.0
-```
-
-Install with:
 ```bash
-pip install -r requirements.txt
+docker compose up -d airflow-postgres airflow-redis airflow-init airflow-apiserver airflow-scheduler airflow-dag-processor airflow-worker airflow-triggerer
 ```
 
-## Next Steps
+## 9. Configuration Notes
 
-1. **Run the pipeline**: `dvc repro`
-2. **Review results**: Check `models/evaluation/model_performance.csv`
-3. **Integrate MLflow**: Add experiment tracking to `src/model/train.py`
-4. **Create scorecard**: Build WoE-based scorecard from Logistic Regression
-5. **Monitor with PSI**: Track Population Stability Index over time
+- All core paths and thresholds are centralized in [params.yaml](params.yaml).
+- The active raw input is configured as `data/loan_data.csv`.
+- Leakage-prone features are removed before selection.
+- The current runtime stack is split so the frontend can run independently from Airflow.
 
----
+## 10. Validation
 
-**Author**: MLOps Team  
-**Last Updated**: 2026-04-10
+The repository includes unit tests in [tests](tests) and the current baseline report in [docs/testing.md](docs/testing.md).
+
+Run tests with:
+
+```bash
+python -m pytest -q
+```
