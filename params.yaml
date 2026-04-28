@@ -58,6 +58,6 @@ models:
 
 # Experiment Controls (DVC + MLflow)
 experiment:
-  model_name: random_forest
+  model_name: neural_network
   mlflow_experiment_name: credit-risk-modeling
   mlflow_tracking_uri: file:./mlruns

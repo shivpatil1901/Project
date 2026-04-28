@@ -9,7 +9,7 @@ End-to-end MLOps workflow for credit default prediction with data pipeline orche
 - MLflow experiment training entrypoint in [src/model/train_mlflow.py](src/model/train_mlflow.py)
 - FastAPI inference service in [src/api/main.py](src/api/main.py)
 - Streamlit frontend in [streamlit_app.py](streamlit_app.py)
-- Prometheus and Grafana monitoring setup in [docker-compose.yml](docker-compose.yml) and [monitoring](monitoring)
+- Merged platform stack (API, UI, MLflow, Prometheus, Grafana, Airflow) in [docker-compose.yml](docker-compose.yml)
 - Airflow ingestion DAG in [airflow/dags/data_ingestion_pipeline.py](airflow/dags/data_ingestion_pipeline.py)
 - Unit tests in [tests](tests)
 - Design and testing docs in [docs](docs)
@@ -54,8 +54,7 @@ The pipeline now uses only an input file:
 
 - Python 3.10 recommended
 - DVC installed in the same environment used to run the pipeline
-- Docker Desktop for monitoring stack
-- Optional: Airflow running in WSL Docker stack
+- Docker Desktop for the merged platform stack
 
 ## Setup
 
@@ -162,15 +161,23 @@ Start UI:
 
 Default backend URL is configured via BACKEND_URL environment variable and points to http://127.0.0.1:8000 by default.
 
-## Monitoring with Prometheus and Grafana
+## Platform Services via Docker Compose
 
-Start monitoring stack from project root:
+Start full stack from project root:
 
     docker compose up -d
 
 Services:
+- Streamlit UI: http://localhost:8501
+- FastAPI docs: http://localhost:8000/docs
+- MLflow: http://localhost:5000
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000
+- Airflow API/Web: http://localhost:8081
+
+Note:
+- In this merged compose file, Airflow API server maps host port `8081` to container port `8080`.
+- `credit-risk-airflow-init` exits after setup; this is expected behavior.
 
 Provisioned dashboard files:
 - [monitoring/grafana/dashboards/credit_risk_monitoring.json](monitoring/grafana/dashboards/credit_risk_monitoring.json)
@@ -181,19 +188,36 @@ Tracked metrics include:
 - API and business latency
 - Drift score and drift distribution
 
-## Airflow Integration in WSL Docker
+## Airflow Files and Services (Merged Compose)
 
 Airflow DAG file in this repo:
 - [airflow/dags/data_ingestion_pipeline.py](airflow/dags/data_ingestion_pipeline.py)
 
-Typical commands in WSL airflow-docker directory:
+Airflow runtime files used by `docker-compose.yml`:
+- [airflow/Dockerfile](airflow/Dockerfile)
+- [airflow/.env](airflow/.env)
+- [airflow/config](airflow/config)
+- [airflow/logs](airflow/logs)
+- [airflow/plugins](airflow/plugins)
 
-    docker compose exec --user airflow airflow-scheduler airflow dags list | grep credit_risk_data_ingestion
+Airflow services started by merged compose:
+- `airflow-postgres`
+- `airflow-redis`
+- `airflow-init`
+- `airflow-apiserver`
+- `airflow-scheduler`
+- `airflow-dag-processor`
+- `airflow-worker`
+- `airflow-triggerer`
+
+Typical commands from project root:
+
+    docker compose exec --user airflow airflow-scheduler airflow dags list
     docker compose exec --user airflow airflow-scheduler airflow dags trigger credit_risk_data_ingestion
     docker compose exec --user airflow airflow-scheduler airflow dags list-runs credit_risk_data_ingestion
 
 Note:
-- Run Airflow CLI commands as user airflow in this setup.
+- Run Airflow CLI commands as user `airflow` in this setup.
 
 ## Unit Tests
 
@@ -236,3 +260,4 @@ Then rerun:
 - HLD: [docs/HLD.md](docs/HLD.md)
 - LLD: [docs/LLD.md](docs/LLD.md)
 - Testing plan/report: [docs/testing.md](docs/testing.md)
+- AI disclosure appendix: [docs/AI_DISCLOSURE_APPENDIX.md](docs/AI_DISCLOSURE_APPENDIX.md)

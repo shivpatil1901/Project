@@ -1,9 +1,3 @@
-# ============================================================
-# Merged docker-compose.yml
-# Includes: backend, frontend, prometheus, grafana, mlflow, airflow
-# Place this in: C:\Users\shivp\OneDrive\Desktop\IITM\MLOps\Project\
-# ============================================================
-
 x-airflow-common:
   &airflow-common
   build:
@@ -56,7 +50,7 @@ services:
     container_name: credit-risk-backend
     environment:
       MLFLOW_TRACKING_URI: file:./mlruns
-      MODEL_URI: /app/mlruns/560095042436939331/models/m-430d1ce53cb14338b01d60e1657dedf9/artifacts
+      MODEL_URI: /app/mlruns/560095042436939331/models/m-36595cbb382941119ea9864a88c4e49b/artifacts
     ports:
       - "8000:8000"
     volumes:
@@ -85,7 +79,6 @@ services:
       - prometheus
       - grafana
       - mlflow
-      - airflow-apiserver
     volumes:
       - .:/app
     restart: unless-stopped

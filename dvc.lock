@@ -9,8 +9,8 @@ stages:
       size: 126659198
     - path: src/data/process.py
       hash: md5
-      md5: 2a66679441de1d36e4637607698b6247
-      size: 18754
+      md5: 8dd641ae14e85835adf802264fcb59b2
+      size: 9462
     params:
       params.yaml:
         data.processed_dir: data/processed
@@ -56,8 +56,8 @@ stages:
       size: 599246
     - path: src/features/engineer.py
       hash: md5
-      md5: c66a4c81dca3e1a27d9e705b752cb97e
-      size: 6395
+      md5: a11867d3470dcfea3d3321e605d5f2d3
+      size: 8210
     params:
       params.yaml:
         data.features_dir: data/features
@@ -144,7 +144,7 @@ stages:
       md5: e4424b392c6b3a84b8f6fd31b36771c6
       size: 479399
   train_model_mlflow:
-    cmd: python src/model/train_mlflow.py --model-name random_forest
+    cmd: python src/model/train_mlflow.py --model-name neural_network
     deps:
     - path: data/features/selected/X_test_selected.npy
       hash: md5
@@ -172,7 +172,7 @@ stages:
         data.models_dir: models
         experiment.mlflow_experiment_name: credit-risk-modeling
         experiment.mlflow_tracking_uri: file:./mlruns
-        experiment.model_name: random_forest
+        experiment.model_name: neural_network
         models:
           logistic_regression:
             random_state: 42
@@ -194,13 +194,13 @@ stages:
     outs:
     - path: models/experiments/metrics.json
       hash: md5
-      md5: 9d356d01034c2e23430b4b9ce5984e0e
-      size: 309
+      md5: 881d1bc39e9ec844fbba5924e1ec218a
+      size: 384
     - path: models/experiments/model.pkl
       hash: md5
-      md5: cc6954de3f1234fa0851b848ba81cef1
-      size: 732658073
+      md5: 7f5d9da347bf914e75cfbf76a80ee69c
+      size: 377029
     - path: models/experiments/run_info.json
       hash: md5
-      md5: 21ff23836c578ab1947f75d4e6f20199
-      size: 227
+      md5: f09416be868a9d7adf93fbf3593f3957
+      size: 228

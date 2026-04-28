@@ -58,6 +58,35 @@ def process_categorical_columns(df, categorical_cols, target_col):
     return woe_table, iv_summary_df
 
 
+def drop_low_iv_categorical_features(X, y, iv_threshold=0.02):
+    """Compute IV for categorical features and drop those below threshold."""
+    categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
+    if not categorical_cols:
+        print("✓ No categorical features found for IV filtering")
+        return X, pd.DataFrame(), pd.DataFrame(), []
+
+    work_df = X[categorical_cols].copy()
+    work_df['target'] = y.values
+
+    woe_table, iv_summary_df = process_categorical_columns(work_df, categorical_cols, 'target')
+    if iv_summary_df.empty:
+        print("✓ IV summary is empty; no IV-based drops applied")
+        return X, woe_table, iv_summary_df, []
+
+    low_iv_features = (
+        iv_summary_df[iv_summary_df['IV'] < iv_threshold]['Column']
+        .astype(str)
+        .tolist()
+    )
+
+    X_filtered = X.drop(columns=low_iv_features, errors='ignore')
+    print(f"✓ Dropped {len(low_iv_features)} low-IV categorical features (threshold={iv_threshold})")
+    if low_iv_features:
+        print(f"  Low-IV features: {low_iv_features}")
+
+    return X_filtered, woe_table, iv_summary_df, low_iv_features
+
+
 def correlation_analysis(X, y):
     """Analyze feature correlations with target"""
     correlations = X.corrwith(y).abs()
@@ -142,6 +171,17 @@ def feature_engineering(input_path=None, output_path=None, params_file="params.y
     
     # Correlation analysis
     correlation_df = correlation_analysis(X, y)
+
+    # Dynamic IV-based filtering for categorical features
+    iv_threshold = params['feature_engineering'].get('iv_threshold', 0.02)
+    X, woe_table, iv_summary_df, low_iv_features = drop_low_iv_categorical_features(
+        X, y, iv_threshold=iv_threshold
+    )
+
+    if not iv_summary_df.empty:
+        iv_summary_df.to_csv(output_path / "iv_summary.csv", index=False)
+    if not woe_table.empty:
+        woe_table.to_csv(output_path / "woe_table.csv", index=False)
     
     # Identify and drop high correlation pairs
     high_corr_pairs, feature_corr = identify_high_corr_pairs(X, params['feature_engineering']['correlation_threshold'])
@@ -165,6 +205,11 @@ def feature_engineering(input_path=None, output_path=None, params_file="params.y
     # Save engineered features
     X.to_csv(output_path / "X_engineered.csv", index=False)
     y.to_csv(output_path / "y_engineered.csv", index=False)
+
+    if low_iv_features:
+        pd.DataFrame({'low_iv_features': low_iv_features}).to_csv(
+            output_path / "low_iv_features.csv", index=False
+        )
     
     print(f"\n✓ Feature engineering complete!")
     print(f"  Output shape: {X.shape}")
